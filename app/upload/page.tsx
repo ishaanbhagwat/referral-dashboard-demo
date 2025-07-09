@@ -22,17 +22,33 @@ export default function FaxUploadPage() {
     urgency: string;
   } | null>(null)
   const [resetting, setResetting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const router = useRouter()
 
-  // Poll the queue every 2 seconds
-  useEffect(() => {
-    const fetchQueue = async () => {
+  // Fetch queue function
+  const fetchQueue = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true)
+    }
+    try {
       const res = await fetch("/api/fax/queue")
       const data = await res.json()
       setQueue(data.queue)
+      setLastUpdated(new Date())
+    } catch (error) {
+      console.error("Failed to fetch queue:", error)
+    } finally {
+      if (isManualRefresh) {
+        setRefreshing(false)
+      }
     }
+  }
+
+  // Poll the queue every 15 seconds (reduced from 2 seconds)
+  useEffect(() => {
     fetchQueue()
-    const interval = setInterval(fetchQueue, 2000)
+    const interval = setInterval(() => fetchQueue(), 15000) // 15 seconds
     return () => clearInterval(interval)
   }, [])
 
@@ -61,6 +77,7 @@ export default function FaxUploadPage() {
     } else {
       setQueue(data.queue)
       setFile(null)
+      setLastUpdated(new Date())
     }
   }
 
@@ -77,6 +94,7 @@ export default function FaxUploadPage() {
       setProcessMsg("Fax processed successfully!")
       setQueue(data.queue)
       setLastReferral(data.referral)
+      setLastUpdated(new Date())
     }
   }
 
@@ -88,6 +106,11 @@ export default function FaxUploadPage() {
     await fetch("/api/fax/reset", { method: "POST" })
     setResetting(false)
     setQueue([])
+    setLastUpdated(null)
+  }
+
+  const handleManualRefresh = () => {
+    fetchQueue(true)
   }
 
   return (
@@ -105,6 +128,13 @@ export default function FaxUploadPage() {
           className="text-xs px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 disabled:opacity-60"
         >
           {resetting ? "Resetting..." : "Reset Demo"}
+        </button>
+        <button
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          className="text-xs px-3 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 disabled:opacity-60"
+        >
+          {refreshing ? "Refreshing..." : "Refresh Queue"}
         </button>
       </div>
       <div className="max-w-md w-full space-y-6 mt-10">
@@ -126,7 +156,14 @@ export default function FaxUploadPage() {
           </button>
         </form>
         <div className="bg-white/5 p-4 rounded border border-white/10">
-          <h2 className="text-lg font-semibold mb-2">Current Fax Queue</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-lg font-semibold">Current Fax Queue</h2>
+            {lastUpdated && (
+              <span className="text-white/40 text-xs">
+                Updated: {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
           {queue.length === 0 ? (
             <div className="text-white/60 text-sm">No faxes in queue.</div>
           ) : (

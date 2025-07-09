@@ -43,23 +43,36 @@ export default function ReferralTriageSystem() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [resetting, setResetting] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
 
-  // Poll referrals every 2 seconds
-  useEffect(() => {
-    const fetchReferrals = async () => {
-      try {
-        const res = await fetch("/api/referrals")
-        const data = await res.json()
-        setReferrals(data.referrals)
-        setLoading(false)
-      } catch {
-        setError("Failed to fetch referrals.")
-        setLoading(false)
+  // Fetch referrals function
+  const fetchReferrals = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true)
+    }
+    try {
+      const res = await fetch("/api/referrals")
+      const data = await res.json()
+      setReferrals(data.referrals)
+      setLastUpdated(new Date())
+      setLoading(false)
+      setError("")
+    } catch {
+      setError("Failed to fetch referrals.")
+      setLoading(false)
+    } finally {
+      if (isManualRefresh) {
+        setRefreshing(false)
       }
     }
+  }
+
+  // Poll referrals every 30 seconds (reduced from 2 seconds)
+  useEffect(() => {
     fetchReferrals()
-    const interval = setInterval(fetchReferrals, 2000)
+    const interval = setInterval(() => fetchReferrals(), 30000) // 30 seconds
     return () => clearInterval(interval)
   }, [])
 
@@ -85,6 +98,11 @@ export default function ReferralTriageSystem() {
     await fetch("/api/fax/reset", { method: "POST" })
     setResetting(false)
     setReferrals([])
+    setLastUpdated(null)
+  }
+
+  const handleManualRefresh = () => {
+    fetchReferrals(true)
   }
 
   // Filter and sort referrals
@@ -133,6 +151,13 @@ export default function ReferralTriageSystem() {
         >
           {resetting ? "Resetting..." : "Reset Demo"}
         </button>
+        <button
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          className="text-xs px-3 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 disabled:opacity-60"
+        >
+          {refreshing ? "Refreshing..." : "Manual Refresh"}
+        </button>
       </div>
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header */}
@@ -141,6 +166,11 @@ export default function ReferralTriageSystem() {
             <div>
               <h1 className="text-2xl font-bold text-white">Referral Dashboard</h1>
               <p className="text-white/60 text-sm mt-1">Manage incoming referral faxes and patient workflows</p>
+              {lastUpdated && (
+                <p className="text-white/40 text-xs mt-1">
+                  Last updated: {lastUpdated.toLocaleTimeString()} (Auto-refresh every 30s)
+                </p>
+              )}
             </div>
             <div className="flex gap-6">
               <div className="text-center">
