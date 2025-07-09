@@ -1,16 +1,93 @@
 "use client"
 
-import { useState, useEffect, FormEvent } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+
+type ProcessedReferral = {
+  id: string;
+  patientName: string;
+  currentStatus: string;
+  urgency: string;
+  specialty: string;
+  documents: unknown[];
+  [key: string]: unknown;
+};
+
+// Mock data for fax queue - matches the referral scenarios
+const initialMockQueue = [
+  {
+    id: "FAX-001",
+    filename: "cardiology_referral.tiff",
+    uploaded_at: "2025-01-15T10:30:00Z",
+    file_url: "https://example.com/fax-001.tiff",
+    patientName: "Maria Rodriguez",
+    specialty: "Cardiology"
+  },
+  {
+    id: "FAX-002", 
+    filename: "neurology_urgent.tiff",
+    uploaded_at: "2025-01-15T11:15:00Z",
+    file_url: "https://example.com/fax-002.tiff",
+    patientName: "James Wilson",
+    specialty: "Neurology"
+  },
+  {
+    id: "FAX-003",
+    filename: "dermatology_referral.tiff",
+    uploaded_at: "2025-01-15T12:00:00Z",
+    file_url: "https://example.com/fax-003.tiff",
+    patientName: "Sarah Chen",
+    specialty: "Dermatology"
+  },
+  {
+    id: "FAX-004",
+    filename: "orthopedics_referral.tiff",
+    uploaded_at: "2025-01-15T13:30:00Z",
+    file_url: "https://example.com/fax-004.tiff",
+    patientName: "Robert Martinez",
+    specialty: "Orthopedics"
+  },
+  {
+    id: "FAX-005",
+    filename: "gastroenterology_referral.tiff",
+    uploaded_at: "2025-01-15T14:45:00Z",
+    file_url: "https://example.com/fax-005.tiff",
+    patientName: "Emily Davis",
+    specialty: "Gastroenterology"
+  },
+  {
+    id: "FAX-006",
+    filename: "oncology_consult.tiff",
+    uploaded_at: "2025-01-15T15:20:00Z",
+    file_url: "https://example.com/fax-006.tiff",
+    patientName: "David Thompson",
+    specialty: "Oncology"
+  }
+]
+
+// Helper functions for session storage
+const getSessionData = (key: string, defaultValue: unknown): unknown => {
+  if (typeof window === 'undefined') return defaultValue
+  try {
+    const stored = sessionStorage.getItem(key)
+    return stored ? JSON.parse(stored) : defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+
+const setSessionData = (key: string, value: unknown): void => {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value))
+  } catch (error) {
+    console.error('Failed to save to session storage:', error)
+  }
+}
 
 export default function FaxUploadPage() {
   const [file, setFile] = useState<File | null>(null)
-  const [queue, setQueue] = useState<{
-    id: string;
-    filename: string;
-    uploaded_at: string;
-    file_url: string;
-  }[]>([])
+  const [queue, setQueue] = useState<typeof initialMockQueue>([])
   const [error, setError] = useState<string>("")
   const [uploading, setUploading] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -21,36 +98,28 @@ export default function FaxUploadPage() {
     currentStatus: string;
     urgency: string;
   } | null>(null)
-  const [resetting, setResetting] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const router = useRouter()
 
-  // Fetch queue function
-  const fetchQueue = async (isManualRefresh = false) => {
-    if (isManualRefresh) {
-      setRefreshing(true)
-    }
-    try {
-      const res = await fetch("/api/fax/queue")
-      const data = await res.json()
-      setQueue(data.queue)
-      setLastUpdated(new Date())
-    } catch (error) {
-      console.error("Failed to fetch queue:", error)
-    } finally {
-      if (isManualRefresh) {
-        setRefreshing(false)
-      }
-    }
-  }
-
-  // Initial fetch only - no automatic polling
+  // Load queue from session storage on component mount
   useEffect(() => {
-    fetchQueue()
+    const savedQueue = getSessionData('faxQueue', initialMockQueue) as typeof initialMockQueue
+    // Ensure we always have some data, even if session storage is empty
+    if (savedQueue.length === 0) {
+      setQueue(initialMockQueue)
+      setSessionData('faxQueue', initialMockQueue)
+    } else {
+      setQueue(savedQueue)
+    }
   }, [])
 
-  const handleSubmit = async (e: FormEvent) => {
+  // Save queue to session storage whenever it changes
+  useEffect(() => {
+    if (queue.length > 0) {
+      setSessionData('faxQueue', queue)
+    }
+  }, [queue])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     if (!file) {
@@ -62,53 +131,277 @@ export default function FaxUploadPage() {
       return
     }
     setUploading(true)
-    const formData = new FormData()
-    formData.append("file", file)
-    const res = await fetch("/api/fax/upload", {
-      method: "POST",
-      body: formData,
-    })
-    const data = await res.json()
-    setUploading(false)
-    if (!res.ok) {
-      setError(data.error || "Upload failed.")
-    } else {
-      setQueue(data.queue)
+    
+    // Simulate upload delay
+    setTimeout(() => {
+      const newFax = {
+        id: `FAX-${Date.now()}`,
+        filename: file.name,
+        uploaded_at: new Date().toISOString(),
+        file_url: `https://example.com/${file.name}`,
+        patientName: "New Patient",
+        specialty: "General"
+      }
+      setQueue([newFax, ...queue])
       setFile(null)
-      setLastUpdated(new Date())
-    }
+      setUploading(false)
+    }, 1000)
   }
 
   const handleProcess = async () => {
     setProcessing(true)
     setProcessMsg("")
     setLastReferral(null)
-    const res = await fetch("/api/fax/process", { method: "POST" })
-    const data = await res.json()
-    setProcessing(false)
-    if (!res.ok) {
-      setProcessMsg(data.error || "Processing failed.")
-    } else {
-      setProcessMsg("Fax processed successfully!")
-      setQueue(data.queue)
-      setLastReferral(data.referral)
-      setLastUpdated(new Date())
+    
+    // Simulate processing delay with OCR and referral creation
+    setTimeout(() => {
+      if (queue.length > 0) {
+        const processedFax = queue[0]
+        const newQueue = queue.slice(1) // Remove the first item
+        
+        // If queue becomes empty, reinitialize with mock data
+        if (newQueue.length === 0) {
+          setQueue(initialMockQueue)
+          setSessionData('faxQueue', initialMockQueue)
+        } else {
+          setQueue(newQueue)
+        }
+        
+        // Create realistic referral with full workflow simulation
+        const mockReferral = createRealisticReferral(processedFax)
+        
+        // Save processed referral to session storage
+        const existingReferrals = getSessionData('processedReferrals', []) as ProcessedReferral[]
+        setSessionData('processedReferrals', [...existingReferrals, mockReferral]);
+        
+        setLastReferral(mockReferral)
+        setProcessMsg(`Fax processed successfully! Referral created with status: ${mockReferral.currentStatus}`)
+      }
+      setProcessing(false)
+    }, 2000)
+  }
+
+  // Function to create realistic referrals with different workflow scenarios
+  const createRealisticReferral = (processedFax: typeof initialMockQueue[0]) => {
+    // Get the next referral ID from session storage
+    const getNextReferralId = () => {
+      const existingReferrals = getSessionData('processedReferrals', []) as ProcessedReferral[]
+      const staticReferrals = getSessionData('staticReferralCount', 4) as number
+      const totalCount = existingReferrals.length + staticReferrals
+      return `REF-2025-${String(totalCount + 1).padStart(3, '0')}`
+    }
+
+    const scenarios = [
+      // Happy path - complete information, goes to scheduling
+      {
+        patientName: "Maria Rodriguez",
+        specialty: "Cardiology",
+        urgency: "Routine",
+        currentStatus: "emr-sync",
+        statusProgress: 75,
+        hasMissingInfo: false,
+        extractedInfo: {
+          reason: "Chest pain evaluation, possible cardiac workup",
+          symptoms: "Intermittent chest pain, shortness of breath on exertion",
+          medications: "Lisinopril 10mg daily, Metformin 500mg twice daily",
+          allergies: "NKDA",
+          insurance: "Blue Cross Blue Shield PPO"
+        },
+        documents: [
+          {
+            id: processedFax.id,
+            name: processedFax.filename,
+            type: "referral",
+            pages: 2,
+            receivedAt: processedFax.uploaded_at,
+            patientData: {
+              name: "Maria Rodriguez",
+              dob: "1985-03-15",
+              mrn: "MR-2025-001"
+            }
+          }
+        ]
+      },
+      // Happy path - urgent case, complete information
+      {
+        patientName: "James Wilson",
+        specialty: "Neurology",
+        urgency: "Urgent",
+        currentStatus: "emr-sync",
+        statusProgress: 75,
+        hasMissingInfo: false,
+        extractedInfo: {
+          reason: "Severe headaches, neurological evaluation needed",
+          symptoms: "Persistent headaches, vision changes, dizziness",
+          medications: "Sumatriptan 50mg PRN",
+          allergies: "Sulfa drugs",
+          insurance: "Medicare"
+        },
+        documents: [
+          {
+            id: processedFax.id,
+            name: processedFax.filename,
+            type: "referral",
+            pages: 1,
+            receivedAt: processedFax.uploaded_at,
+            patientData: {
+              name: "James Wilson",
+              dob: "1972-08-22",
+              mrn: "JW-2025-002"
+            }
+          }
+        ]
+      },
+      // Problematic case - missing insurance information
+      {
+        patientName: "Sarah Chen",
+        specialty: "Dermatology",
+        urgency: "Routine",
+        currentStatus: "contact-pcp",
+        statusProgress: 35,
+        hasMissingInfo: true,
+        extractedInfo: {
+          reason: "Suspicious mole evaluation",
+          symptoms: "Irregular mole on left forearm, no pain",
+          medications: "None",
+          allergies: "Latex",
+          insurance: "Missing - PCP contacted"
+        },
+        documents: [
+          {
+            id: processedFax.id,
+            name: processedFax.filename,
+            type: "referral",
+            pages: 1,
+            receivedAt: processedFax.uploaded_at,
+            patientData: {
+              name: "Sarah Chen",
+              dob: "1990-11-08",
+              mrn: "SC-2025-003"
+            }
+          }
+        ]
+      },
+      // Problematic case - missing medication information
+      {
+        patientName: "Robert Martinez",
+        specialty: "Orthopedics",
+        urgency: "Urgent",
+        currentStatus: "contact-pcp",
+        statusProgress: 45,
+        hasMissingInfo: true,
+        extractedInfo: {
+          reason: "Knee pain, possible meniscus tear",
+          symptoms: "Left knee pain, swelling, limited mobility",
+          medications: "Incomplete - awaiting clarification",
+          allergies: "Penicillin",
+          insurance: "Aetna HMO"
+        },
+        documents: [
+          {
+            id: processedFax.id,
+            name: processedFax.filename,
+            type: "referral",
+            pages: 2,
+            receivedAt: processedFax.uploaded_at,
+            patientData: {
+              name: "Robert Martinez",
+              dob: "1968-05-12",
+              mrn: "RM-2025-004"
+            }
+          }
+        ]
+      },
+      // Problematic case - incomplete symptoms
+      {
+        patientName: "Emily Davis",
+        specialty: "Gastroenterology",
+        urgency: "Routine",
+        currentStatus: "contact-pcp",
+        statusProgress: 30,
+        hasMissingInfo: true,
+        extractedInfo: {
+          reason: "Abdominal pain evaluation",
+          symptoms: "Incomplete - PCP contacted for details",
+          medications: "Omeprazole 20mg daily",
+          allergies: "NKDA",
+          insurance: "Cigna PPO"
+        },
+        documents: [
+          {
+            id: processedFax.id,
+            name: processedFax.filename,
+            type: "referral",
+            pages: 1,
+            receivedAt: processedFax.uploaded_at,
+            patientData: {
+              name: "Emily Davis",
+              dob: "1983-07-25",
+              mrn: "ED-2025-005"
+            }
+          }
+        ]
+      },
+      // Happy path - complete information, different specialty
+      {
+        patientName: "David Thompson",
+        specialty: "Oncology",
+        urgency: "Routine",
+        currentStatus: "emr-sync",
+        statusProgress: 75,
+        hasMissingInfo: false,
+        extractedInfo: {
+          reason: "Follow-up consultation for breast cancer screening",
+          symptoms: "No current symptoms, routine follow-up",
+          medications: "Tamoxifen 20mg daily",
+          allergies: "NKDA",
+          insurance: "UnitedHealthcare"
+        },
+        documents: [
+          {
+            id: processedFax.id,
+            name: processedFax.filename,
+            type: "referral",
+            pages: 3,
+            receivedAt: processedFax.uploaded_at,
+            patientData: {
+              name: "David Thompson",
+              dob: "1975-12-03",
+              mrn: "DT-2025-006"
+            }
+          }
+        ]
+      }
+    ]
+    
+    // Select a scenario based on the fax ID to ensure variety
+    const scenarioIndex = (parseInt(processedFax.id.slice(-1)) - 1) % scenarios.length
+    const scenario = scenarios[scenarioIndex]
+    
+    return {
+      id: getNextReferralId(),
+      patientName: scenario.patientName,
+      patientId: scenario.extractedInfo?.insurance ? `PT-${Math.floor(Math.random() * 90000) + 10000}` : "PT-PENDING",
+      referringProvider: "Dr. Fax Processing",
+      referringPractice: "Fax System",
+      specialty: scenario.specialty,
+      urgency: scenario.urgency,
+      receivedAt: new Date().toISOString(),
+      currentStatus: scenario.currentStatus,
+      statusProgress: scenario.statusProgress,
+      hasMissingInfo: scenario.hasMissingInfo,
+      documents: scenario.documents,
+      extractedInfo: scenario.extractedInfo
     }
   }
 
-  const handleReset = async () => {
-    setResetting(true)
+  const handleReset = () => {
+    setQueue(initialMockQueue)
+    setSessionData('faxQueue', initialMockQueue)
+    setSessionData('processedReferrals', [])
     setError("")
     setProcessMsg("")
     setLastReferral(null)
-    await fetch("/api/fax/reset", { method: "POST" })
-    setResetting(false)
-    setQueue([])
-    setLastUpdated(null)
-  }
-
-  const handleManualRefresh = () => {
-    fetchQueue(true)
   }
 
   return (
@@ -122,17 +415,10 @@ export default function FaxUploadPage() {
         </button>
         <button
           onClick={handleReset}
-          disabled={resetting}
+          disabled={false}
           className="text-xs px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 disabled:opacity-60"
         >
-          {resetting ? "Resetting..." : "Reset Demo"}
-        </button>
-        <button
-          onClick={handleManualRefresh}
-          disabled={refreshing}
-          className="text-xs px-3 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 disabled:opacity-60"
-        >
-          {refreshing ? "Refreshing..." : "Refresh Queue"}
+          Reset Simulation
         </button>
       </div>
       <div className="max-w-md w-full space-y-6 mt-10">
@@ -156,11 +442,9 @@ export default function FaxUploadPage() {
         <div className="bg-white/5 p-4 rounded border border-white/10">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-semibold">Current Fax Queue</h2>
-            {lastUpdated && (
-              <span className="text-white/40 text-xs">
-                Updated: {lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
+            <span className="text-white/40 text-xs">
+              {queue.length} faxes
+            </span>
           </div>
           {queue.length === 0 ? (
             <div className="text-white/60 text-sm">No faxes in queue.</div>
@@ -168,9 +452,16 @@ export default function FaxUploadPage() {
             <ul className="space-y-2">
               {queue.map(item => (
                 <li key={item.id} className="flex justify-between items-center text-sm border-b border-white/10 pb-1">
-                  <span>{item.filename}</span>
-                  <span className="text-white/60">{new Date(item.uploaded_at).toLocaleString()}</span>
-                  <a href={item.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-400 underline ml-2">View</a>
+                  <div>
+                    <div className="font-medium">{item.filename}</div>
+                    <div className="text-xs text-white/60">
+                      {item.patientName} • {item.specialty}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white/60 text-xs">{new Date(item.uploaded_at).toLocaleString()}</div>
+                    <a href={item.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-400 underline">View</a>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -190,6 +481,7 @@ export default function FaxUploadPage() {
               <div>Patient: {lastReferral.patientName}</div>
               <div>Status: {lastReferral.currentStatus}</div>
               <div>Urgency: {lastReferral.urgency}</div>
+              <div className="mt-2 text-green-400">Check the dashboard to see the new referral!</div>
             </div>
           )}
         </div>

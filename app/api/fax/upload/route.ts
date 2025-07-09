@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   const blob = await put(file.name, Buffer.from(arrayBuffer), {
     access: 'public',
     contentType: file.type,
+    allowOverwrite: true
   })
 
   // Insert into Postgres fax_queue
