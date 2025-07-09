@@ -69,11 +69,9 @@ export default function ReferralTriageSystem() {
     }
   }
 
-  // Poll referrals every 30 seconds (reduced from 2 seconds)
+  // Initial fetch only - no automatic polling
   useEffect(() => {
     fetchReferrals()
-    const interval = setInterval(() => fetchReferrals(), 30000) // 30 seconds
-    return () => clearInterval(interval)
   }, [])
 
   const [expandedReferrals, setExpandedReferrals] = useState<string[]>([])
@@ -168,7 +166,7 @@ export default function ReferralTriageSystem() {
               <p className="text-white/60 text-sm mt-1">Manage incoming referral faxes and patient workflows</p>
               {lastUpdated && (
                 <p className="text-white/40 text-xs mt-1">
-                  Last updated: {lastUpdated.toLocaleTimeString()} (Auto-refresh every 30s)
+                  Last updated: {lastUpdated.toLocaleTimeString()} (Manual refresh only)
                 </p>
               )}
             </div>

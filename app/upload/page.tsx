@@ -45,11 +45,9 @@ export default function FaxUploadPage() {
     }
   }
 
-  // Poll the queue every 15 seconds (reduced from 2 seconds)
+  // Initial fetch only - no automatic polling
   useEffect(() => {
     fetchQueue()
-    const interval = setInterval(() => fetchQueue(), 15000) // 15 seconds
-    return () => clearInterval(interval)
   }, [])
 
   const handleSubmit = async (e: FormEvent) => {
