@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { sql } from '@vercel/postgres'
 import Tesseract from 'tesseract.js'
 import OpenAI from 'openai'
@@ -20,7 +20,18 @@ async function runOcrOnTiff(buffer: Buffer): Promise<string> {
 }
 
 // Helper: Call OpenAI to extract referral info
-async function extractReferralInfoWithLLM(ocrText: string): Promise<any> {
+async function extractReferralInfoWithLLM(ocrText: string): Promise<{
+  patientName: string | null;
+  referringProvider: string | null;
+  referringPractice: string | null;
+  specialty: string | null;
+  urgency: string | null;
+  reason: string | null;
+  symptoms: string | null;
+  medications: string | null;
+  allergies: string | null;
+  insurance: string | null;
+}> {
   const prompt = `Extract the following fields from the provided medical referral text. Output ONLY a valid JSON object, no prose or explanation. If a field is missing or cannot be determined, set its value to null. Do not hallucinate or guess. Use these keys: patientName, referringProvider, referringPractice, specialty, urgency, reason, symptoms, medications, allergies, insurance.\n\nReferral Text:\n${ocrText}`
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
@@ -37,6 +48,7 @@ async function extractReferralInfoWithLLM(ocrText: string): Promise<any> {
     return JSON.parse(content || '{}')
   } catch (e) {
     // If parsing fails, return all fields as null
+    console.log("Error parsing LLM response: ", {e})
     return {
       patientName: null,
       referringProvider: null,
@@ -52,7 +64,7 @@ async function extractReferralInfoWithLLM(ocrText: string): Promise<any> {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   // Fetch the oldest fax in the queue
   const { rows: queueRows } = await sql`
     SELECT * FROM fax_queue ORDER BY uploaded_at ASC LIMIT 1
@@ -69,6 +81,7 @@ export async function POST(req: NextRequest) {
     ocrText = await runOcrOnTiff(tiffBuffer)
   } catch (e) {
     // If OCR fails, continue with simulated text
+    console.log("Error running OCR: ", {e})
   }
 
   // Extract info with LLM

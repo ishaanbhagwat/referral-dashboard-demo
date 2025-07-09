@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
   // Upload to Vercel Blob Storage
   const arrayBuffer = await file.arrayBuffer()
-  const blob = await put(file.name, new Uint8Array(arrayBuffer), {
+  const blob = await put(file.name, Buffer.from(arrayBuffer), {
     access: 'public',
     contentType: file.type,
   })

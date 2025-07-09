@@ -5,12 +5,22 @@ import { useRouter } from "next/navigation"
 
 export default function FaxUploadPage() {
   const [file, setFile] = useState<File | null>(null)
-  const [queue, setQueue] = useState<any[]>([])
+  const [queue, setQueue] = useState<{
+    id: string;
+    filename: string;
+    uploaded_at: string;
+    file_url: string;
+  }[]>([])
   const [error, setError] = useState<string>("")
   const [uploading, setUploading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processMsg, setProcessMsg] = useState("")
-  const [lastReferral, setLastReferral] = useState<any>(null)
+  const [lastReferral, setLastReferral] = useState<{
+    id: string;
+    patientName: string;
+    currentStatus: string;
+    urgency: string;
+  } | null>(null)
   const [resetting, setResetting] = useState(false)
   const router = useRouter()
 
@@ -75,7 +85,7 @@ export default function FaxUploadPage() {
     setError("")
     setProcessMsg("")
     setLastReferral(null)
-    const res = await fetch("/api/fax/reset", { method: "POST" })
+    await fetch("/api/fax/reset", { method: "POST" })
     setResetting(false)
     setQueue([])
   }

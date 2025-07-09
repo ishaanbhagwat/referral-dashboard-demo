@@ -26,7 +26,20 @@ import { useRouter } from "next/navigation"
 
 // Remove mockReferrals. Use state and fetch from backend
 export default function ReferralTriageSystem() {
-  const [referrals, setReferrals] = useState<any[]>([])
+  const [referrals, setReferrals] = useState<{
+    id: string;
+    patientName: string;
+    patientId: string | null;
+    referringProvider: string | null;
+    referringPractice: string | null;
+    specialty: string | null;
+    urgency: string;
+    received_at: string;
+    currentStatus: string;
+    hasMissingInfo: boolean;
+    documents: string;
+    extracted_info: string;
+  }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [resetting, setResetting] = useState(false)
@@ -40,7 +53,7 @@ export default function ReferralTriageSystem() {
         const data = await res.json()
         setReferrals(data.referrals)
         setLoading(false)
-      } catch (e) {
+      } catch {
         setError("Failed to fetch referrals.")
         setLoading(false)
       }
@@ -69,7 +82,7 @@ export default function ReferralTriageSystem() {
   const handleReset = async () => {
     setResetting(true)
     setError("")
-    const res = await fetch("/api/fax/reset", { method: "POST" })
+    await fetch("/api/fax/reset", { method: "POST" })
     setResetting(false)
     setReferrals([])
   }
@@ -425,7 +438,13 @@ export default function ReferralTriageSystem() {
                         </TabsContent>
 
                         <TabsContent value="documents" className="space-y-3 mt-4">
-                          {referral.documents && JSON.parse(referral.documents).map((doc: any) => (
+                          {referral.documents && JSON.parse(referral.documents).map((doc: {
+                            id: string;
+                            name: string;
+                            pages: number;
+                            receivedAt: string;
+                            fileUrl: string;
+                          }) => (
                             <div
                               key={doc.id}
                               className="flex items-center justify-between p-3 border border-white/10 rounded bg-white/5"
