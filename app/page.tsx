@@ -95,7 +95,7 @@ const staticMockReferrals = [
     specialty: "Dermatology",
     urgency: "Routine",
     receivedAt: "2025-01-15T16:45:00Z",
-    currentStatus: "ocr-processing",
+    currentStatus: "emr-sync",
     statusProgress: 25,
     hasMissingInfo: false,
     documents: [
@@ -149,6 +149,28 @@ const setSessionData = (key: string, value: unknown): void => {
   }
 }
 
+// Helper function to generate random doctor names and practices
+const generateRandomProvider = () => {
+  const doctors = [
+    "Dr. Sarah Johnson", "Dr. Michael Chen", "Dr. Lisa Wong", "Dr. James Wilson",
+    "Dr. Amanda Foster", "Dr. Robert Martinez", "Dr. Emily Davis", "Dr. David Thompson",
+    "Dr. Jennifer Lee", "Dr. Christopher Brown", "Dr. Maria Garcia", "Dr. Kevin Smith",
+    "Dr. Rachel Green", "Dr. Thomas Anderson", "Dr. Jessica Taylor", "Dr. Daniel White"
+  ]
+  
+  const practices = [
+    "Downtown Family Medicine", "Westside Medical Group", "Northgate Clinic", 
+    "Central Health Clinic", "Riverside Medical Associates", "Sunset Family Practice",
+    "Valley View Healthcare", "Metro Medical Center", "Community Health Partners",
+    "Primary Care Associates", "Family Medicine Group", "Health First Clinic"
+  ]
+  
+  return {
+    provider: doctors[Math.floor(Math.random() * doctors.length)],
+    practice: practices[Math.floor(Math.random() * practices.length)]
+  }
+}
+
 // Type definitions
 interface ReferralDocument {
   id: number | string;
@@ -190,6 +212,7 @@ interface Referral {
 
 export default function ReferralTriageSystem() {
   const [referrals, setReferrals] = useState<Referral[]>(staticMockReferrals)
+  const [isLoading, setIsLoading] = useState(true)
   const [expandedReferrals, setExpandedReferrals] = useState<string[]>([])
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("recent")
@@ -210,33 +233,45 @@ export default function ReferralTriageSystem() {
 
   // Load processed referrals from session storage and combine with static data
   useEffect(() => {
-    const processedReferrals = getSessionData('processedReferrals', []) as Referral[]
-    
-    // Transform processed referrals to match the dashboard format
-    const transformedReferrals: Referral[] = processedReferrals.map((processed: Referral) => ({
-      id: processed.id,
-      patientName: processed.patientName,
-      patientId: processed.patientId || `PT-${Math.floor(Math.random() * 90000) + 10000}`,
-      referringProvider: processed.referringProvider || "Dr. Fax Processing",
-      referringPractice: processed.referringPractice || "Fax System",
-      specialty: processed.specialty || "General",
-      urgency: processed.urgency || "Routine",
-      receivedAt: processed.receivedAt || new Date().toISOString(),
-      currentStatus: processed.currentStatus || "ocr-processing",
-      statusProgress: processed.statusProgress || 25,
-      hasMissingInfo: processed.hasMissingInfo || false,
-      documents: processed.documents || [],
-      extractedInfo: processed.extractedInfo || {
-        reason: "Fax processing in progress",
-        symptoms: "Awaiting OCR completion",
-        medications: "To be extracted",
-        allergies: "To be extracted", 
-        insurance: "To be extracted",
-      },
-    }))
+    try {
+      const processedReferrals = getSessionData('processedReferrals', []) as Referral[]
+      
+          // Transform processed referrals to match the dashboard format
+    const transformedReferrals: Referral[] = processedReferrals.map((processed: Referral) => {
+      const randomProvider = generateRandomProvider()
+      return {
+        id: processed.id,
+        patientName: processed.patientName,
+        patientId: processed.patientId || `PT-${Math.floor(Math.random() * 90000) + 10000}`,
+        referringProvider: processed.referringProvider || randomProvider.provider,
+        referringPractice: processed.referringPractice || randomProvider.practice,
+        specialty: processed.specialty || "General",
+        urgency: processed.urgency || "Routine",
+        receivedAt: processed.receivedAt || new Date().toISOString(),
+        currentStatus: processed.currentStatus || "ocr-processing",
+        statusProgress: processed.statusProgress || 25,
+        hasMissingInfo: processed.hasMissingInfo || false,
+        documents: processed.documents || [],
+        extractedInfo: processed.extractedInfo || {
+          reason: "Fax processing in progress",
+          symptoms: "Awaiting OCR completion",
+          medications: "To be extracted",
+          allergies: "To be extracted", 
+          insurance: "To be extracted",
+        },
+      }
+    })
 
-    // Combine static and processed referrals, with processed ones appearing first
-    setReferrals([...transformedReferrals, ...staticMockReferrals])
+      // Combine static and processed referrals, with processed ones appearing first
+      const allReferrals = [...transformedReferrals, ...staticMockReferrals]
+      setReferrals(allReferrals)
+    } catch (error) {
+      // Fallback to static mock data if there's any error
+      console.error('Error loading referrals:', error)
+      setReferrals(staticMockReferrals)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
   const toggleReferral = (id: string) => {
@@ -485,15 +520,23 @@ export default function ReferralTriageSystem() {
             </div>
             <div className="flex gap-6">
               <div className="text-center">
-                <div className="text-xl font-bold text-green-500">12</div>
-                <div className="text-xs text-white/60">Active</div>
+                <div className="text-xl font-bold text-green-500">{referrals.length}</div>
+                <div className="text-xs text-white/60">Total</div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold text-green-500">8</div>
+                <div className="text-xl font-bold text-green-500">
+                  {referrals.filter(r => {
+                    const today = new Date().toDateString()
+                    const receivedDate = new Date(r.receivedAt).toDateString()
+                    return receivedDate === today
+                  }).length}
+                </div>
                 <div className="text-xs text-white/60">Today</div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold text-red-500">3</div>
+                <div className="text-xl font-bold text-red-500">
+                  {referrals.filter(r => r.currentStatus !== "ready-schedule").length}
+                </div>
                 <div className="text-xs text-white/60">Pending</div>
               </div>
             </div>
@@ -549,7 +592,22 @@ export default function ReferralTriageSystem() {
 
         {/* Referrals List */}
         <div className="space-y-1">
-          {filteredReferrals.map((referral: Referral) => {
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="text-white/60">Loading referrals...</div>
+            </div>
+          ) : filteredReferrals.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-white/60">No referrals found. Using mock data...</div>
+              <button 
+                onClick={() => setReferrals(staticMockReferrals)}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Load Mock Data
+              </button>
+            </div>
+          ) : (
+            filteredReferrals.map((referral: Referral) => {
             const workflowSteps = getWorkflowSteps(referral.hasMissingInfo)
             const calculatedProgress = getStatusProgress(referral.currentStatus, referral.hasMissingInfo)
 
@@ -565,7 +623,13 @@ export default function ReferralTriageSystem() {
                       <div className="text-white">{referral.patientName}</div>
                       <div className="text-white/60">|</div>
                       <div
-                        className={`${referral.currentStatus === "awaiting-info" || referral.currentStatus === "contact-pcp" ? "text-red-400" : "text-green-500"} hover:underline`}
+                        className={`${
+                          referral.currentStatus === "awaiting-info" || referral.currentStatus === "contact-pcp" 
+                            ? "text-red-400" 
+                            : referral.currentStatus === "ready-schedule" 
+                              ? "text-green-500" 
+                              : "text-blue-400"
+                        } hover:underline`}
                         onClick={(e) => {
                           e.stopPropagation()
                           if (!expandedReferrals.includes(referral.id)) {
@@ -982,7 +1046,8 @@ export default function ReferralTriageSystem() {
                 )}
               </div>
             )
-          })}
+          })
+        )}
         </div>
       </div>
 
