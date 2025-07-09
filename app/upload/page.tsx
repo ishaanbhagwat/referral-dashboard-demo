@@ -89,7 +89,6 @@ export default function FaxUploadPage() {
   const [file, setFile] = useState<File | null>(null)
   const [queue, setQueue] = useState<typeof initialMockQueue>([])
   const [error, setError] = useState<string>("")
-  const [uploading, setUploading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processMsg, setProcessMsg] = useState("")
   const [lastReferral, setLastReferral] = useState<{
@@ -130,7 +129,6 @@ export default function FaxUploadPage() {
       setError("Only TIFF files are accepted.")
       return
     }
-    setUploading(true)
     
     // Simulate upload delay
     setTimeout(() => {
@@ -144,7 +142,6 @@ export default function FaxUploadPage() {
       }
       setQueue([newFax, ...queue])
       setFile(null)
-      setUploading(false)
     }, 1000)
   }
 
@@ -428,15 +425,16 @@ export default function FaxUploadPage() {
             type="file"
             accept=".tiff,.tif,image/tiff,image/tif"
             onChange={e => setFile(e.target.files?.[0] || null)}
-            className="block w-full text-sm text-white file:bg-green-500 file:text-black file:rounded file:px-3 file:py-1 file:border-none file:mr-3"
+            disabled={true}
+            className="block w-full text-sm text-white/40 file:bg-gray-500 file:text-gray-300 file:rounded file:px-3 file:py-1 file:border-none file:mr-3 cursor-not-allowed"
           />
           {error && <div className="text-red-400 text-sm">{error}</div>}
           <button
             type="submit"
-            disabled={uploading}
-            className="w-full bg-green-500 text-black font-semibold py-2 rounded hover:bg-green-600 disabled:opacity-60"
+            disabled={true}
+            className="w-full bg-gray-500 text-gray-300 font-semibold py-2 rounded cursor-not-allowed"
           >
-            {uploading ? "Uploading..." : "Upload TIFF to Fax Queue"}
+            Upload Disabled
           </button>
         </form>
         <div className="bg-white/5 p-4 rounded border border-white/10">
